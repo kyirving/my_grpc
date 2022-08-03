@@ -38,7 +38,7 @@ message Response {
 //文件上传请求
 message UpRequest {
     string filename =1;
-    bytes Content = 2;
+    bytes data = 2;
 }
 
 //文件上传响应 

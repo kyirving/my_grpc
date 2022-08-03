@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"log"
@@ -102,7 +103,45 @@ func (f *FileServer) DownloadFile(req *pd.DlRequest, stream pd.File_DownloadFile
 	return nil
 }
 
-func (f *FileServer) UploadFile(req pd.File_UploadFileServer) error {
+func (f *FileServer) UploadFile(stream pd.File_UploadFileServer) error {
+
+	//读取客户端上传的内容
+	var file *os.File
+	var filepath string
+	var write *bufio.Writer
+	defer file.Close()
+	for {
+		req, err := stream.Recv()
+
+		if err == io.EOF {
+			log.Println("stream read Done")
+			goto END
+		}
+		fmt.Println("server Recv Data = ", string(req.Data))
+
+		if err != nil {
+			log.Println("stream read err = ", err)
+			break
+		}
+
+		//打开文件
+		if file == nil {
+			filepath = "../script/" + req.Filename
+			file, _ = os.OpenFile(filepath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		}
+
+		write = bufio.NewWriter(file)
+		nn, err := write.Write(req.Data)
+		write.Flush() //todo 先每循环一次执行下吧
+		fmt.Println("server nn = ", nn)
+		fmt.Println("server err = ", err)
+
+	}
+END:
+	write.Flush()
+	return stream.SendAndClose(&pd.UpResponse{
+		Filepath: filepath,
+	})
 	return nil
 }
 

@@ -3,10 +3,12 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	pd "my_grpc/proto/myproto"
+	"my_grpc/utils"
 	"os"
 
 	"google.golang.org/grpc"
@@ -40,7 +42,8 @@ func main() {
 	case 1:
 		Command(conn)
 	case 2:
-		File(conn)
+		FileSource()
+		// File(conn)
 	}
 }
 
@@ -77,7 +80,36 @@ func Command(conn *grpc.ClientConn) {
 	}
 }
 
-func File(conn *grpc.ClientConn) {
+func FileSource() {
+
+	//连接资源服务
+	SouceConn, err := grpc.Dial(Address, grpc.WithInsecure())
+	if err != nil {
+		grpclog.Fatalln(err)
+	}
+	defer SouceConn.Close()
+	err = DownloadFile(SouceConn)
+	if err != nil {
+		log.Println("DownloadFile err = ", err)
+		return
+	}
+
+	//连接上传的服务
+	ToConn, err := grpc.Dial(Address, grpc.WithInsecure())
+	if err != nil {
+		grpclog.Fatalln(err)
+	}
+	defer ToConn.Close()
+
+	err = UploadFile(ToConn)
+	if err != nil {
+		log.Println("UploadFile err = ", err)
+		return
+	}
+
+}
+
+func DownloadFile(conn *grpc.ClientConn) error {
 	//1 先下载
 	client := pd.NewFileClient(conn)
 	req := &pd.DlRequest{
@@ -87,6 +119,7 @@ func File(conn *grpc.ClientConn) {
 	stream, err := client.DownloadFile(context.Background(), req)
 	if err != nil {
 		log.Fatalf("could not echo: %v", err)
+		return errors.New(error.Error(err))
 	}
 
 	// for循环获取服务端推送的消息
@@ -94,9 +127,9 @@ func File(conn *grpc.ClientConn) {
 	defer file.Close()
 	if err != nil {
 		fmt.Println("os.OpenFile() err = ", err)
+		return errors.New(error.Error(err))
 	}
 	write := bufio.NewWriter(file)
-
 	for {
 		// 通过 Recv() 不断获取服务端send()推送的消息
 		resp, err := stream.Recv()
@@ -110,8 +143,6 @@ func File(conn *grpc.ClientConn) {
 			continue
 		}
 
-		
-
 		n, err := write.Write(resp.Data)
 		fmt.Println("n = ", n)
 		fmt.Println("err = ", err)
@@ -119,4 +150,58 @@ func File(conn *grpc.ClientConn) {
 		log.Printf("Recv data:%v", resp)
 	}
 	write.Flush()
+
+	return nil
+}
+
+func UploadFile(conn *grpc.ClientConn) error {
+	client := pd.NewFileClient(conn)
+
+	filepath := "../script/test.php"
+	filename := "upload.php"
+
+	//得到流的句柄
+	stream, err := client.UploadFile(context.Background())
+	if err != nil {
+		fmt.Println("os.OpenFile() err = ", err)
+		return errors.New(error.Error(err))
+	}
+
+	if !utils.FileExists(filepath) {
+		return errors.New("文件不存在")
+	}
+
+	file, err := os.Open(filepath)
+	if err != nil {
+		return errors.New("打开文件失败")
+	}
+	//创建缓存区，用于读取文件内容
+	buf := make([]byte, 10)
+	for {
+		n, err := file.Read(buf)
+		//读取完毕
+		if err == io.EOF {
+			log.Println("file read Done")
+			break
+		}
+
+		if err != nil {
+			log.Println("file read err = ", err)
+			break
+		}
+
+		fmt.Println("client Send Upload Data = ", string(buf[:n]))
+		stream.Send(&pd.UpRequest{
+			Data:     buf[:n],
+			Filename: filename,
+		})
+	}
+
+	resp, err := stream.CloseAndRecv()
+	if err != nil {
+		fmt.Println("stream.CloseAndRecv() err =", err)
+	}
+
+	fmt.Println("resp = ", resp)
+	return nil
 }
