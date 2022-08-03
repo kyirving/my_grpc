@@ -17,7 +17,10 @@ service File {
     //rpc Upload(Request) returns (Response) {};
 
     //服务端推送流
-    rpc UploadStream(Request) returns (stream Response) {};
+    //请求的是流，响应的是普通响应
+    rpc UploadFile(stream UpRequest) returns (UpResponse) {};
+    //请求的是普通请求，响应的是流式响应
+    rpc DownloadFile(DlRequest) returns (stream DlResponse) {};
 }
 
 // Request 请求结构
@@ -31,3 +34,29 @@ message Request {
 message Response {
     string message = 1;
 }
+
+//文件上传请求
+message UpRequest {
+    string filename =1;
+    bytes Content = 2;
+}
+
+//文件上传响应 
+message UpResponse {
+    string filepath = 1;
+}
+
+//文件下载请求
+message DlRequest {
+    string filepath = 1;
+}
+
+//文件下载响应
+message DlResponse {
+    bytes data = 1;
+    int32 code =2; //状态码
+    string msg = 3; //消息
+    
+}
+
+

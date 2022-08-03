@@ -12,6 +12,17 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
+const (
+	RESP_SUCC                 = 200
+	RESP_NOT_FOUND            = 404
+	RESP_REQUEST_METHOD_ERROR = 405
+	RESP_PARAMS_ERROR         = 406
+	RESP_SYSTEM_BUSY          = 500
+	RESP_ORDER_REPEAT         = 600
+	RESP_UNKNOW_ERROR         = 601
+	RESP_NETWORK_ERROR        = 602
+)
+
 func FormatMsg(logleve int, message string) string {
 
 	var dateType string
@@ -162,5 +173,16 @@ func MyCron(msgChan chan string, spec, command string) {
 	close(msgChan)
 	// 阻塞，或者使用其他延迟时间函数、
 	select {}
+}
 
+//检测文件或路径是否存在
+func FileExists(filepath string) bool {
+	_, err := os.Stat(filepath) //os.Stat获取文件信息
+	if err != nil {
+		if os.IsExist(err) {
+			return true
+		}
+		return false
+	}
+	return true
 }

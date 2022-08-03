@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
 	"log"
 	pd "my_grpc/proto/myproto"
+	"os"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
@@ -38,8 +40,7 @@ func main() {
 	case 1:
 		Command(conn)
 	case 2:
-		FileUpload(conn)
-
+		File(conn)
 	}
 }
 
@@ -76,6 +77,46 @@ func Command(conn *grpc.ClientConn) {
 	}
 }
 
-func FileUpload(conn *grpc.ClientConn) {
+func File(conn *grpc.ClientConn) {
+	//1 先下载
+	client := pd.NewFileClient(conn)
+	req := &pd.DlRequest{
+		Filepath: "/Users/wuh/study/go/src/my_grpc/server/test.php",
+	}
 
+	stream, err := client.DownloadFile(context.Background(), req)
+	if err != nil {
+		log.Fatalf("could not echo: %v", err)
+	}
+
+	// for循环获取服务端推送的消息
+	file, err := os.OpenFile("../script/test.php", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	defer file.Close()
+	if err != nil {
+		fmt.Println("os.OpenFile() err = ", err)
+	}
+	write := bufio.NewWriter(file)
+
+	for {
+		// 通过 Recv() 不断获取服务端send()推送的消息
+		resp, err := stream.Recv()
+		// err==io.EOF则表示服务端关闭stream了 退出
+		if err == io.EOF {
+			log.Println("server closed")
+			break
+		}
+		if err != nil {
+			log.Printf("Recv error:%v", err)
+			continue
+		}
+
+		
+
+		n, err := write.Write(resp.Data)
+		fmt.Println("n = ", n)
+		fmt.Println("err = ", err)
+
+		log.Printf("Recv data:%v", resp)
+	}
+	write.Flush()
 }

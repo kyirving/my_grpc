@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	pd "my_grpc/proto/myproto"
 	"my_grpc/utils"
@@ -58,6 +59,53 @@ func (c *CmdServer) ExecStream(req *pd.Request, stream pd.Cmd_ExecStreamServer) 
 	return nil
 }
 
+//实现FileServer服务的DownloadFile方法
+func (f *FileServer) DownloadFile(req *pd.DlRequest, stream pd.File_DownloadFileServer) error {
+
+	fmt.Println("filepath = ", req.Filepath)
+	//先检测文件是否存在
+	if !utils.FileExists(req.Filepath) {
+		stream.Send(&pd.DlResponse{
+			Code: utils.RESP_NOT_FOUND,
+			Msg:  "文件或目录不存在",
+		})
+		return nil
+	}
+
+	file, err := os.Open(req.Filepath)
+	if err != nil {
+		stream.Send(&pd.DlResponse{
+			Code: utils.RESP_SYSTEM_BUSY,
+			Msg:  "打开文件错误",
+		})
+		return nil
+	}
+	//创建缓存区，用于读取文件内容
+	buf := make([]byte, 10)
+	for {
+		n, err := file.Read(buf)
+		//读取完毕
+		if err == io.EOF {
+			log.Println("file read Done")
+			break
+		}
+
+		if err != nil {
+			log.Println("file read err = ", err)
+			break
+		}
+		stream.Send(&pd.DlResponse{
+			Data: buf[:n],
+			Code: utils.RESP_SUCC,
+		})
+	}
+	return nil
+}
+
+func (f *FileServer) UploadFile(req pd.File_UploadFileServer) error {
+	return nil
+}
+
 //Upload 实现File服务接口
 // func (this *FileServer) UploadStream(ctx context.Context, req *pd.Request) (*pd.Response, error) {
 // 	resp := new(pd.Response)
@@ -79,7 +127,7 @@ func main() {
 	pd.RegisterCmdServer(grpcServer, &CmdServer{})
 
 	//注册FileServer
-	// pd.RegisterFileServer(grpcServer, &FileServer{})
+	pd.RegisterFileServer(grpcServer, &FileServer{})
 
 	fmt.Println("服务端开始监听～～～")
 	log.Printf("[INFO] my-grpc Server Start at Pid:%d Address:%s\n", os.Getpid(), Address)
