@@ -112,35 +112,37 @@ func (f *FileServer) UploadFile(stream pd.File_UploadFileServer) error {
 	defer file.Close()
 	for {
 		req, err := stream.Recv()
-
 		if err == io.EOF {
-			log.Println("stream read Done")
+			log.Println("server stream read Done")
 			goto END
 		}
-		fmt.Println("server Recv Data = ", string(req.Data))
-
 		if err != nil {
+			return stream.SendAndClose(&pd.UpResponse{
+				Code: utils.RESP_SYSTEM_BUSY,
+				Msg:  "server read err :" + error.Error(err),
+			})
+
 			log.Println("stream read err = ", err)
 			break
 		}
-
 		//打开文件
 		if file == nil {
-			filepath = "../script/" + req.Filename
-			file, _ = os.OpenFile(filepath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+			filepath = req.Filepath
+			file, err = os.OpenFile(filepath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+			if err != nil {
+				log.Println("Server OpenFile err = ", err)
+			}
 		}
 
 		write = bufio.NewWriter(file)
-		nn, err := write.Write(req.Data)
+		write.Write(req.Data)
 		write.Flush() //todo 先每循环一次执行下吧
-		fmt.Println("server nn = ", nn)
-		fmt.Println("server err = ", err)
-
 	}
 END:
 	write.Flush()
 	return stream.SendAndClose(&pd.UpResponse{
 		Filepath: filepath,
+		Code:     utils.RESP_SUCC,
 	})
 	return nil
 }

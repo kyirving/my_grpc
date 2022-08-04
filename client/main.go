@@ -10,13 +10,15 @@ import (
 	pd "my_grpc/proto/myproto"
 	"my_grpc/utils"
 	"os"
+	"path/filepath"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 )
 
 var (
-	otype byte
+	otype  byte
+	reader *bufio.Reader
 )
 
 func main() {
@@ -25,7 +27,7 @@ func main() {
 	fmt.Println("             2 : 文 件 下 发")
 
 	fmt.Scanln(&otype)
-
+	reader = bufio.NewReader(os.Stdin)
 	switch otype {
 	case 1:
 		Command()
@@ -51,15 +53,21 @@ func Command() {
 	fmt.Scanln(&method)
 
 	fmt.Println("请输入远程主机地址及端口:")
-	fmt.Scanln(&address)
+	result, _, _ := reader.ReadLine()
+	address = string(result)
+	if address == "" {
+		log.Fatalln("远程主机地址不能为空")
+	}
 
 	fmt.Println("请输入命令:")
-	fmt.Scanln(&commmand)
+	result, _, _ = reader.ReadLine()
+	commmand = string(result)
 	if method == "1" {
 
 	} else if method == "2" {
 		fmt.Println("请输入执行规则:")
-		fmt.Scanln(&spec)
+		result, _, _ = reader.ReadLine()
+		spec = string(result)
 	} else {
 		fmt.Println("method undefined!!!")
 		return
@@ -103,9 +111,13 @@ func Command() {
 
 func FileSource() {
 
-	var (
-		address string
-	)
+	fmt.Println("请输入数据源主机地址及端口:")
+	result, _, _ := reader.ReadLine()
+	address := string(result)
+
+	if address == "" {
+		log.Fatalln("数据源主机地址不能为空")
+	}
 
 	//连接资源服务
 	SouceConn, err := grpc.Dial(address, grpc.WithInsecure())
@@ -113,20 +125,27 @@ func FileSource() {
 		grpclog.Fatalln(err)
 	}
 	defer SouceConn.Close()
-	err = DownloadFile(SouceConn)
+	localPath, err := DownloadFile(SouceConn)
 	if err != nil {
-		log.Println("DownloadFile err = ", err)
+		log.Fatalln("DownloadFile err = ", err)
 		return
 	}
 
+	fmt.Println("请输入分发主机地址及端口:")
+	result, _, _ = reader.ReadLine()
+	toAddress := string(result)
+	if address == "" {
+		log.Fatalln("分发主机地址不能为空")
+	}
+
 	//连接上传的服务
-	ToConn, err := grpc.Dial(address, grpc.WithInsecure())
+	ToConn, err := grpc.Dial(toAddress, grpc.WithInsecure())
 	if err != nil {
 		grpclog.Fatalln(err)
 	}
 	defer ToConn.Close()
 
-	err = UploadFile(ToConn)
+	err = UploadFile(ToConn, localPath)
 	if err != nil {
 		log.Println("UploadFile err = ", err)
 		return
@@ -134,25 +153,34 @@ func FileSource() {
 
 }
 
-func DownloadFile(conn *grpc.ClientConn) error {
+func DownloadFile(conn *grpc.ClientConn) (string, error) {
 	//1 先下载
+
+	fmt.Println("请输入数据源主机文件路径:")
+	result, _, _ := reader.ReadLine()
+	Filepath := string(result)
+	if Filepath == "" {
+		return "", errors.New("数据源主机文件路不能为空")
+	}
+
 	client := pd.NewFileClient(conn)
 	req := &pd.DlRequest{
-		Filepath: "/Users/wuh/study/go/src/my_grpc/server/test.php",
+		Filepath: Filepath,
 	}
 
 	stream, err := client.DownloadFile(context.Background(), req)
 	if err != nil {
 		log.Fatalf("could not echo: %v", err)
-		return errors.New(error.Error(err))
+		return "", errors.New(error.Error(err))
 	}
 
 	// for循环获取服务端推送的消息
-	file, err := os.OpenFile("../script/test.php", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	localFilePath := "../script/" + filepath.Base(Filepath)
+	file, err := os.OpenFile(localFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	defer file.Close()
 	if err != nil {
 		fmt.Println("os.OpenFile() err = ", err)
-		return errors.New(error.Error(err))
+		return "", errors.New(error.Error(err))
 	}
 	write := bufio.NewWriter(file)
 	for {
@@ -168,22 +196,28 @@ func DownloadFile(conn *grpc.ClientConn) error {
 			continue
 		}
 
-		n, err := write.Write(resp.Data)
-		fmt.Println("n = ", n)
-		fmt.Println("err = ", err)
+		//服务端响应失败
+		if resp.Code != utils.RESP_SUCC {
+			return "", errors.New(resp.Msg)
+		}
 
+		write.Write(resp.Data)
 		log.Printf("Recv data:%v", resp)
 	}
 	write.Flush()
-
-	return nil
+	return localFilePath, nil
 }
 
-func UploadFile(conn *grpc.ClientConn) error {
+func UploadFile(conn *grpc.ClientConn, localPath string) error {
 	client := pd.NewFileClient(conn)
 
-	filepath := "../script/test.php"
-	filename := "upload.php"
+	fmt.Println("请输入目标主机文件路径:")
+	result, _, _ := reader.ReadLine()
+	RemoteFilePath := string(result)
+	if RemoteFilePath == "" {
+		return errors.New("目标主机文件路径不能为空")
+	}
+	// RemoteFilePath := "/tmp/upload.php"
 
 	//得到流的句柄
 	stream, err := client.UploadFile(context.Background())
@@ -192,11 +226,11 @@ func UploadFile(conn *grpc.ClientConn) error {
 		return errors.New(error.Error(err))
 	}
 
-	if !utils.FileExists(filepath) {
+	if !utils.FileExists(localPath) {
 		return errors.New("文件不存在")
 	}
 
-	file, err := os.Open(filepath)
+	file, err := os.Open(localPath)
 	if err != nil {
 		return errors.New("打开文件失败")
 	}
@@ -214,11 +248,9 @@ func UploadFile(conn *grpc.ClientConn) error {
 			log.Println("file read err = ", err)
 			break
 		}
-
-		fmt.Println("client Send Upload Data = ", string(buf[:n]))
 		stream.Send(&pd.UpRequest{
 			Data:     buf[:n],
-			Filename: filename,
+			Filepath: RemoteFilePath,
 		})
 	}
 
@@ -227,6 +259,10 @@ func UploadFile(conn *grpc.ClientConn) error {
 		fmt.Println("stream.CloseAndRecv() err =", err)
 	}
 
-	fmt.Println("resp = ", resp)
+	if resp.Code == utils.RESP_SUCC {
+		log.Println("文件下发成功")
+	} else {
+		log.Println("文件下发失败:" + resp.Msg)
+	}
 	return nil
 }

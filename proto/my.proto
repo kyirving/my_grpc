@@ -37,13 +37,15 @@ message Response {
 
 //文件上传请求
 message UpRequest {
-    string filename =1;
+    string filepath =1;
     bytes data = 2;
 }
 
 //文件上传响应 
 message UpResponse {
     string filepath = 1;
+    int32 code =2; //状态码
+    string msg = 3; //消息
 }
 
 //文件下载请求

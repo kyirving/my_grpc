@@ -138,8 +138,6 @@ func MyCron(msgChan chan string, spec, command string) {
 			os.Exit(0)
 		}
 
-		fmt.Println("stderrPipe = ", stderrPipe)
-		fmt.Println("stdoutPipe = ", stdoutPipe)
 		wg.Add(1)
 		go func() {
 			defer stderrPipe.Close()
