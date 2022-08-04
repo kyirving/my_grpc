@@ -1,6 +1,6 @@
 syntax = "proto3"; //必须指定protobuf协议版本号
 package myproto;
-option go_package ="/myproto"; //包名
+option go_package ="./myproto"; //包名
 
 //命令行服务
 service Cmd {
@@ -37,7 +37,7 @@ message Response {
 
 //文件上传请求
 message UpRequest {
-    string filepath =1;
+    string filename =1;
     bytes data = 2;
 }
 

@@ -172,6 +172,7 @@ func main() {
 
 	fmt.Println("服务端开始监听～～～")
 	log.Printf("[INFO] my-grpc Server Start at Pid:%d Address:%s\n", os.Getpid(), Address)
+	fmt.Printf("[INFO] my-grpc Server Start at Pid:%d Address:%s\n", os.Getpid(), Address)
 	// grpclog.Println("Listen on " + Address)
 	grpcServer.Serve(listen)
 

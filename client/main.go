@@ -106,6 +106,7 @@ func Command() {
 			continue
 		}
 		log.Printf("Client Recv data:%v\n", resp.GetMessage())
+		fmt.Printf("Client Recv data:%v\n", resp.GetMessage())
 	}
 }
 
