@@ -27,6 +27,13 @@ const (
 
 func init() {
 	// 初始化日志
+	if !FileExists("../log") {
+		err := os.Mkdir("../log", 0777)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	logFile := "../log/mygrpc-" + time.Now().Format("2006-01-02") + ".log"
 	file, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
