@@ -15,23 +15,11 @@ import (
 	"google.golang.org/grpc/grpclog"
 )
 
-const (
-	// Address gRPC服务地址
-	Address = "127.0.0.1:8080"
-)
-
 var (
 	otype byte
 )
 
 func main() {
-	// 客户端连接gRPC服务地址
-	conn, err := grpc.Dial(Address, grpc.WithInsecure())
-	if err != nil {
-		grpclog.Fatalln(err)
-	}
-	defer conn.Close()
-
 	fmt.Println("------------ 请 选 择 模 式 -----------")
 	fmt.Println("             1 : 命 令 执 行")
 	fmt.Println("             2 : 文 件 下 发")
@@ -40,7 +28,7 @@ func main() {
 
 	switch otype {
 	case 1:
-		Command(conn)
+		Command()
 	case 2:
 		FileSource()
 		// File(conn)
@@ -48,16 +36,50 @@ func main() {
 }
 
 //执行命令方法
-func Command(conn *grpc.ClientConn) {
+func Command() {
+	var (
+		method   string
+		commmand string
+		spec     string
+		address  string
+	)
+
+	req := &pd.Request{}
+	fmt.Println("------------ 请输入执行对象 ------------")
+	fmt.Println("             1 普 通 命 令 ")
+	fmt.Println("             2 定 时 任 务 ")
+	fmt.Scanln(&method)
+
+	fmt.Println("请输入远程主机地址及端口:")
+	fmt.Scanln(&address)
+
+	fmt.Println("请输入命令:")
+	fmt.Scanln(&commmand)
+	if method == "1" {
+
+	} else if method == "2" {
+		fmt.Println("请输入执行规则:")
+		fmt.Scanln(&spec)
+	} else {
+		fmt.Println("method undefined!!!")
+		return
+	}
+	req.Method = method
+	req.Command = commmand
+	req.Spec = spec
+
+	// 客户端连接gRPC服务地址
+	log.Printf("my-grpc Client grpc.Dial at Address:%s\n", address)
+	conn, err := grpc.Dial(address, grpc.WithInsecure())
+	if err != nil {
+		grpclog.Fatalln(err)
+	}
+	defer conn.Close()
+
 	// 初始化客户端
 	client := pd.NewCmdClient(conn)
-	// 调用方法
-	req := &pd.Request{
-		Method:  "2", //1 是命令 2是cron
-		Command: "echo 222 >> ./tast2.log",
-		Spec:    "*/1 * * * *",
-	}
-	//调用获取stream
+
+	//调用方法 获取stream
 	stream, err := client.ExecStream(context.Background(), req)
 	if err != nil {
 		log.Fatalf("could not echo: %v", err)
@@ -69,21 +91,24 @@ func Command(conn *grpc.ClientConn) {
 		resp, err := stream.Recv()
 		// err==io.EOF则表示服务端关闭stream了 退出
 		if err == io.EOF {
-			log.Println("server closed")
 			break
 		}
 		if err != nil {
-			log.Printf("Recv error:%v", err)
+			log.Printf("Client Recv error:%v", err)
 			continue
 		}
-		log.Printf("Recv data:%v", resp.GetMessage())
+		log.Printf("Client Recv data:%v\n", resp.GetMessage())
 	}
 }
 
 func FileSource() {
 
+	var (
+		address string
+	)
+
 	//连接资源服务
-	SouceConn, err := grpc.Dial(Address, grpc.WithInsecure())
+	SouceConn, err := grpc.Dial(address, grpc.WithInsecure())
 	if err != nil {
 		grpclog.Fatalln(err)
 	}
@@ -95,7 +120,7 @@ func FileSource() {
 	}
 
 	//连接上传的服务
-	ToConn, err := grpc.Dial(Address, grpc.WithInsecure())
+	ToConn, err := grpc.Dial(address, grpc.WithInsecure())
 	if err != nil {
 		grpclog.Fatalln(err)
 	}

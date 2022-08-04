@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	Address = "127.0.0.1:8080"
+	Address = ":8080"
 )
 
 //定义cmdServer并实现约定的接口

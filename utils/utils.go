@@ -23,6 +23,18 @@ const (
 	RESP_NETWORK_ERROR        = 602
 )
 
+// var Log log.Logger
+
+func init() {
+	// 初始化日志
+	logFile := "../log/mygrpc-" + time.Now().Format("2006-01-02") + ".log"
+	file, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.SetOutput(file)
+}
+
 func FormatMsg(logleve int, message string) string {
 
 	var dateType string
